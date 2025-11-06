@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>計算機</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>計算機</h1>
+      <div class="sub">四則演算と括弧、^/**、% に対応。</div>
+    </header>
+    <main id="app" class="app">
+      <section class="pane left" aria-label="入力ペイン">
+        <label for="exprInput" class="label">入力（式）</label>
+        <textarea id="exprInput" spellcheck="false" aria-label="式入力"></textarea>
+        <div class="help">
+          - 対応: +, -, *, /, %, ^, **, ( ) と小数（数値中のカンマ/アンダースコアによる桁区切り可）<br />
+          - 全角/記号（× ÷ − など）は自動で正規化します<br />
+          - 行をまたいだ式も評価されます（リアルタイム）
+        </div>
+      </section>
+      <section class="pane right" aria-label="結果ペイン">
+        <div class="panel" id="statusPanel">
+          <div class="panel-title">状態</div>
+          <div id="statusText">式を入力してください。</div>
+        </div>
+        <div class="panel" id="finalPanel">
+          <div class="panel-title">最終結果</div>
+          <div id="finalValue" class="final">—</div>
+        </div>
+        <div class="panel" id="termsPanel">
+          <div class="panel-title">項ごとの内訳 ()でくくると項になります</div>
+          <ol id="termsList" class="terms"></ol>
+          <div id="runningTotals" class="running"></div>
+        </div>
+        <div class="panel" id="stepsPanel">
+          <div class="panel-title">途中計算</div>
+          <ul id="stepsList" class="steps"></ul>
+        </div>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+  </html>
