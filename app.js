@@ -10,6 +10,8 @@
   const stepsEl = document.getElementById('stepsList');
   const termsOl = document.getElementById('termsList');
   const runningDiv = document.getElementById('runningTotals');
+  // 構文エラー位置表示用（トークナイズ時の加工後ソースを保持）
+  let currentSourceForError = '';
 
   const sample = ``;
 
@@ -37,6 +39,18 @@
       .replace(/￥/g, '\\')
       .replace(/[，]/g, ',');
     return s;
+  }
+
+  // 行頭が「# 」の行をコメントとして無視（レイアウト保持のため空白に置換）
+  function stripCommentLinesKeepLayout(src) {
+    const lines = src.split(/\n/);
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx];
+      if (/^#\s/.test(line)) {
+        lines[idx] = ' '.repeat(line.length);
+      }
+    }
+    return lines.join('\n');
   }
 
   // ===== トークナイザ =====
@@ -184,7 +198,7 @@
   function sourceFromTokens(tokens) {
     // トークンから元のソースを復元（簡易）
     // 今回は入力テキストを直接使うので未使用でも問題なし
-    return inputEl.value;
+    return currentSourceForError || inputEl.value;
   }
 
   // ===== 評価器 =====
@@ -325,7 +339,9 @@
 
   const onInput = debounce(() => {
     const srcRaw = inputEl.value;
-    const src = normalizeExpr(srcRaw);
+    const normalized = normalizeExpr(srcRaw);
+    const src = stripCommentLinesKeepLayout(normalized);
+    currentSourceForError = src;
     try {
       const tokens = tokenize(src);
       const ast = parse(tokens);
