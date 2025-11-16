@@ -1,3 +1,11 @@
+/**
+ * UI bootstrap for the calculator demo.
+ *
+ * This file wires DOM elements to the pure calculation engine exposed from
+ * `./engine`. It deliberately performs only UI concerns (reading inputs,
+ * rendering outputs) and delegates all parsing/evaluation/formatting to the
+ * engine. All imports are static import declarations as required.
+ */
 import {
   applyTemplate,
   extractTopLevelTerms,
@@ -7,8 +15,9 @@ import {
   parse,
   parseVariables,
   tokenize,
+  evaluate,
   type Node,
-} from './calc';
+} from './engine';
 
 function debounce<T extends (...args: any[]) => void>(fn: T, ms = 200) {
   let t: number | undefined;
@@ -75,11 +84,6 @@ if (typeof document !== 'undefined') {
       statusEl!.textContent = `${label}: ${err?.message ?? String(err)}`;
     }
 
-    function evalAst(ast: Node) {
-      const mod = require('./calc') as typeof import('./calc');
-      return mod.evaluate(ast);
-    }
-
     const onInput = debounce(() => {
       const exprRaw = inputEl.value;
       const varsRaw = varsEl.value;
@@ -89,7 +93,7 @@ if (typeof document !== 'undefined') {
         const src = normalizeExpr(templated);
         const tokens = tokenize(src);
         const ast = parse(tokens, src);
-        const { value, steps } = evalAst(ast);
+        const { value, steps } = evaluate(ast);
         renderOk({ value, steps, ast });
       } catch (e) {
         renderErr(e);
