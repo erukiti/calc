@@ -21,11 +21,29 @@ body {
 
 .pane { width: 50%; padding: 10px; overflow: hidden; min-height: 0; display: flex; flex-direction: column; }
 
-.pane.left { border-right: 2px solid #000; }
+.pane.left { border-right: 2px solid #000; gap: 10px; }
 
 .label { display: block; margin-bottom: 6px; font-weight: 600; flex: 0 0 auto; }
 
-textarea#exprInput { width: 100%; flex: 1 1 auto; border: 1px solid #000; padding: 10px; resize: none; background: #fff; color: #000; min-height: 0; }
+.input-group { display: flex; flex-direction: column; min-height: 0; }
+.input-group.expr { flex: 1 1 auto; }
+.input-group.expr textarea { flex: 1 1 auto; }
+.input-group.vars { flex: 0 0 auto; }
+
+textarea {
+  width: 100%;
+  border: 1px solid #000;
+  padding: 10px;
+  resize: none;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  min-height: 0;
+}
+
+#exprInput { flex: 1 1 auto; }
+
+.input-group.vars textarea { height: 110px; flex: 0 0 auto; }
 
 .help { margin-top: 6px; font-size: 12px; flex: 0 0 auto; }
 

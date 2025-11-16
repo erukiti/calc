@@ -1,38 +1,50 @@
-// テキストエリア計算機（モック）
+// テキストエリア計算機（TypeScript）
 // - eval 不使用の簡易パーサ（Pratt）と評価器
 // - 四則演算、括弧、^/**、% をサポート
 // - トップレベルの + / - を分解して項ごとの途中結果を表示
 
-(function () {
-  const inputEl = document.getElementById('exprInput');
-  const statusEl = document.getElementById('statusText');
-  const finalEl = document.getElementById('finalValue');
-  const stepsEl = document.getElementById('stepsList');
-  const termsOl = document.getElementById('termsList');
-  const runningDiv = document.getElementById('runningTotals');
-  // 構文エラー位置表示用（トークナイズ時の加工後ソースを保持）
-  let currentSourceForError = '';
+type TokNum = { type: 'num'; value: number; text: string; pos: number };
+type TokOp = { type: 'op'; op: BinOp | '+' | '-'; pos: number };
+type TokL = { type: 'lparen'; pos: number };
+type TokR = { type: 'rparen'; pos: number };
+type TokEOF = { type: 'eof'; pos: number };
+type Token = TokNum | TokOp | TokL | TokR | TokEOF;
+
+type BinOp = '+' | '-' | '*' | '/' | '%' | '^' | '**';
+
+type NumNode = { type: 'num'; value: number; text?: string; pos?: number };
+type GroupNode = { type: 'group'; expr: Node; pos?: number };
+type UnaryNode = { type: 'unary'; op: '+' | '-'; expr: Node; pos?: number };
+type BinNode = { type: 'bin'; op: BinOp; left: Node; right: Node; pos?: number };
+type Node = NumNode | GroupNode | UnaryNode | BinNode;
+
+(() => {
+  const inputEl = document.getElementById('exprInput') as HTMLTextAreaElement;
+  const varsEl = document.getElementById('varsInput') as HTMLTextAreaElement;
+  const statusEl = document.getElementById('statusText') as HTMLDivElement;
+  const finalEl = document.getElementById('finalValue') as HTMLDivElement;
+  const stepsEl = document.getElementById('stepsList') as HTMLUListElement;
+  const termsOl = document.getElementById('termsList') as HTMLOListElement;
+  const runningDiv = document.getElementById('runningTotals') as HTMLDivElement;
 
   const sample = ``;
-
   inputEl.value = sample;
 
-  const debounce = (fn, ms = 200) => {
-    let t;
-    return (...args) => {
-      clearTimeout(t);
-      t = setTimeout(() => fn(...args), ms);
+  function debounce<T extends (...args: any[]) => void>(fn: T, ms = 200) {
+    let t: number | undefined;
+    return (...args: Parameters<T>) => {
+      if (t != null) window.clearTimeout(t);
+      t = window.setTimeout(() => fn(...args), ms);
     };
-  };
+  }
 
-  function normalizeExpr(str) {
-    // 全角・類似記号の正規化（NFKC + 置換）
+  function normalizeExpr(str: string) {
     let s = (str || '').normalize('NFKC');
     s = s
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
-      .replace(/[·・]/g, '*') // よくある中点→掛け算扱い（簡易）
+      .replace(/[·・]/g, '*')
       .replace(/／/g, '/')
       .replace(/％/g, '%')
       .replace(/＾/g, '^')
@@ -41,52 +53,67 @@
     return s;
   }
 
-  // 行頭が「# 」の行をコメントとして無視（レイアウト保持のため空白に置換）
-  function stripCommentLinesKeepLayout(src) {
-    const lines = src.split(/\n/);
-    for (let idx = 0; idx < lines.length; idx++) {
-      const line = lines[idx];
-      if (/^#\s/.test(line)) {
-        lines[idx] = ' '.repeat(line.length);
+  function templateError(msg: string) {
+    const e = new Error(msg);
+    (e as any).name = 'TemplateError';
+    return e as Error & { name: 'TemplateError' };
+  }
+
+  function parseVariables(text: string) {
+    const vars = new Map<string, string>();
+    if (!text) return vars;
+    const lines = text.split(/\r?\n/);
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      const m = trimmed.match(/^([A-Za-z_][\w]*)\s*=\s*(.+)$/);
+      if (!m) {
+        throw templateError(`変数定義 (行${idx + 1}) は name = value 形式にしてください`);
       }
-    }
-    return lines.join('\n');
+      const [, key, valueRaw] = m;
+      vars.set(key, valueRaw.trim());
+    });
+    return vars;
+  }
+
+  function applyTemplate(src: string, vars: Map<string, string>) {
+    return src.replace(/\{\{\s*([A-Za-z_][\w]*)\s*\}\}/g, (_, name: string) => {
+      if (!vars.has(name)) {
+        throw templateError(`テンプレート変数 "${name}" が定義されていません`);
+      }
+      return vars.get(name) as string;
+    });
   }
 
   // ===== トークナイザ =====
-  function tokenize(src) {
+  function tokenize(src: string): Token[] {
     const s = src;
-    const tokens = [];
+    const tokens: Token[] = [];
     let i = 0;
     const len = s.length;
-
-    const push = (t) => tokens.push(t);
+    const push = (t: Token) => tokens.push(t);
 
     while (i < len) {
-      const ch = s[i];
-      // 空白・改行はスキップ
+      const ch = s[i]!;
       if (/\s/.test(ch)) { i++; continue; }
 
-      // 数字（小数対応） 例: 123, 0.5, .75
-      // カンマ区切り（桁区切り）とアンダースコアは無視して数値化
+      // 数字（小数対応）
       if (/[0-9.]/.test(ch)) {
-        let start = i;
-        let dotCount = 0;
-        if (ch === '.') { dotCount++; }
+        const start = i;
+        let dotCount = ch === '.' ? 1 : 0;
         i++;
         while (i < len) {
-          const c = s[i];
+          const c = s[i]!;
           if (c === '.') {
             dotCount++;
             if (dotCount > 1) break;
             i++;
-          } else if (/[0-9_,]/.test(c)) { // 数字・アンダースコア・カンマは継続
+          } else if (/[0-9_,]/.test(c)) {
             i++;
           } else {
             break;
           }
         }
-        // アンダースコアとカンマを除去して数値へ
         const text = s.slice(start, i).replace(/[_,]/g, '');
         if (text === '.' || text === '') {
           throw syntaxError('不正な数値', s, start);
@@ -95,7 +122,7 @@
         continue;
       }
 
-      // 演算子（二文字 ** 優先）
+      // 二文字演算子
       if (s.slice(i, i + 2) === '**') {
         push({ type: 'op', op: '**', pos: i });
         i += 2; continue;
@@ -104,14 +131,13 @@
       const singleOps = '+-*/%^()';
       if (singleOps.includes(ch)) {
         if (ch === '(' || ch === ')') {
-          push({ type: ch === '(' ? 'lparen' : 'rparen', pos: i });
+          push({ type: ch === '(' ? 'lparen' : 'rparen', pos: i } as TokL | TokR);
         } else {
-          push({ type: 'op', op: ch, pos: i });
+          push({ type: 'op', op: ch as TokOp['op'], pos: i });
         }
         i++; continue;
       }
 
-      // 未対応文字
       throw syntaxError(`未対応の文字 '${ch}'`, s, i);
     }
 
@@ -119,24 +145,26 @@
     return tokens;
   }
 
-  function syntaxError(msg, src, pos) {
+  function syntaxError(msg: string, src: string, pos: number) {
     const caret = makeCaret(src, pos);
     const e = new Error(`${msg} @${pos}\n${caret}`);
-    e.name = 'SyntaxError';
-    e.pos = pos;
-    return e;
+    (e as any).name = 'SyntaxError';
+    (e as any).pos = pos;
+    return e as Error & { name: 'SyntaxError'; pos: number };
   }
 
-  function makeCaret(src, pos) {
-    const lineBreaks = [...src.slice(0, pos).matchAll(/\n/g)].length;
+  function makeCaret(src: string, pos: number) {
+    const before = src.slice(0, pos);
+    const lineBreaks = [...before.matchAll(/\n/g)].length;
     const lines = src.split(/\n/);
     const line = lines[lineBreaks] || '';
-    const col = pos - (lines.slice(0, lineBreaks).join('\n').length);
+    const prefix = lines.slice(0, lineBreaks).join('\n');
+    const col = pos - prefix.length;
     return `${line}\n${' '.repeat(Math.max(0, col))}^`;
   }
 
   // ===== Pratt パーサ =====
-  const PREC = {
+  const PREC: Record<BinOp, number> = {
     '^': 4,
     '**': 4,
     '*': 3,
@@ -145,17 +173,17 @@
     '+': 2,
     '-': 2,
   };
-  const RIGHT_ASSOC = new Set(['^', '**']);
 
-  function parse(tokens) {
+  const RIGHT_ASSOC = new Set<BinOp>(['^', '**']);
+
+  function parse(tokens: Token[]) {
     let i = 0;
-    const peek = () => tokens[i];
-    const next = () => tokens[i++];
+    const peek = () => tokens[i]!;
+    const next = () => tokens[i++]!;
 
-    function parsePrimary() {
+    function parsePrimary(): Node {
       const t = peek();
       if (t.type === 'op' && (t.op === '+' || t.op === '-')) {
-        // 単項演算子（連続可）
         next();
         const expr = parsePrimary();
         return { type: 'unary', op: t.op, expr, pos: t.pos };
@@ -168,17 +196,17 @@
         next();
         return { type: 'group', expr, pos: t.pos };
       }
-      throw syntaxError('項が必要です', sourceFromTokens(tokens), t.pos);
+      throw syntaxError('項が必要です', sourceFromTokens(tokens), (t as any).pos ?? 0);
     }
 
-    function parseExpression(minPrec) {
+    function parseExpression(minPrec: number): Node {
       let left = parsePrimary();
       while (true) {
         const t = peek();
         if (t.type !== 'op') break;
-        const prec = PREC[t.op];
+        const prec = PREC[t.op as BinOp];
         if (prec == null || prec < minPrec) break;
-        const op = t.op;
+        const op = t.op as BinOp;
         next();
         const nextMin = prec + (RIGHT_ASSOC.has(op) ? 0 : 1);
         const right = parseExpression(nextMin);
@@ -190,21 +218,19 @@
     const ast = parseExpression(0);
     if (peek().type !== 'eof') {
       const t = peek();
-      throw syntaxError('式の末尾に余分なトークンがあります', sourceFromTokens(tokens), t.pos);
+      throw syntaxError('式の末尾に余分なトークンがあります', sourceFromTokens(tokens), (t as any).pos ?? 0);
     }
     return ast;
   }
 
-  function sourceFromTokens(tokens) {
-    // トークンから元のソースを復元（簡易）
-    // 今回は入力テキストを直接使うので未使用でも問題なし
-    return currentSourceForError || inputEl.value;
+  function sourceFromTokens(_tokens: Token[]) {
+    return inputEl.value;
   }
 
   // ===== 評価器 =====
-  function evaluate(ast) {
-    const steps = [];
-    function evalNode(node) {
+  function evaluate(ast: Node) {
+    const steps: string[] = [];
+    function evalNode(node: Node): number {
       switch (node.type) {
         case 'num':
           return node.value;
@@ -222,7 +248,7 @@
           const a = evalNode(node.left);
           const b = evalNode(node.right);
           const op = node.op;
-          let res;
+          let res: number;
           if (op === '+') res = a + b;
           else if (op === '-') res = a - b;
           else if (op === '*') res = a * b;
@@ -234,7 +260,8 @@
           return res;
         }
         default:
-          throw new Error('未知のノード: ' + node.type);
+          // @ts-expect-error exhaustive
+          throw new Error('未知のノード: ' + (node as any).type);
       }
     }
     const value = evalNode(ast);
@@ -242,10 +269,10 @@
   }
 
   // トップレベルの + と - を分解して「項」を抽出
-  function extractTopLevelTerms(ast) {
-    const list = [];
-    function pushTerm(node) { list.push(node); }
-    function walk(n, sign = 1) {
+  function extractTopLevelTerms(ast: Node) {
+    const list: Node[] = [];
+    function pushTerm(node: Node) { list.push(node); }
+    function walk(n: Node, sign = 1) {
       if (n.type === 'bin' && (n.op === '+' || n.op === '-')) {
         walk(n.left, sign);
         if (n.op === '+') walk(n.right, sign); else walk(n.right, -sign);
@@ -260,17 +287,16 @@
   }
 
   // ===== 文字列フォーマット =====
-  function fmt(n) {
+  function fmt(n: number) {
     if (!isFinite(n)) return String(n);
     if (Number.isInteger(n)) return String(n);
-    // 小数は12桁で丸め、末尾の0を削除
     let s = n.toFixed(12);
     s = s.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
     if (s === '-0') s = '0';
     return s;
   }
 
-  function exprToString(node) {
+  function exprToString(node: Node): string {
     switch (node.type) {
       case 'num': return fmt(node.value);
       case 'group': return `(${exprToString(node.expr)})`;
@@ -286,20 +312,19 @@
         const rs = (r.type === 'bin' && (PREC[r.op] < lp || (PREC[r.op] === lp && !RIGHT_ASSOC.has(node.op)))) ? `(${exprToString(r)})` : exprToString(r);
         return `${ls} ${node.op} ${rs}`;
       }
-      default: return '?';
     }
   }
 
-  function needsParenUnary(n) {
+  function needsParenUnary(n: Node) {
     return n.type === 'bin' || n.type === 'unary';
   }
 
-  function formatMaybeParen(n) {
+  function formatMaybeParen(n: Node) {
     if (n.type === 'num') return fmt(n.value);
     return `(${exprToString(n)})`;
   }
 
-  function renderOk({ value, steps, ast, src }) {
+  function renderOk({ value, steps, ast }: { value: number; steps: string[]; ast: Node; src?: string }) {
     statusEl.textContent = 'OK';
     finalEl.textContent = fmt(value);
 
@@ -309,7 +334,6 @@
     const terms = extractTopLevelTerms(ast);
     let run = 0;
     terms.forEach((t, idx) => {
-      // 個別に評価
       const v = evaluate(t).value;
       const li = document.createElement('li');
       li.textContent = `項${idx + 1}: ${exprToString(t)} = ${fmt(v)}`;
@@ -329,20 +353,22 @@
     });
   }
 
-  function renderErr(err) {
+  function renderErr(err: any) {
     finalEl.textContent = '—';
     termsOl.innerHTML = '';
     runningDiv.innerHTML = '';
     stepsEl.innerHTML = '';
-    statusEl.textContent = `構文エラー: ${err.message}`;
+    const label = err && err.name === 'SyntaxError' ? '構文エラー' : 'エラー';
+    statusEl.textContent = `${label}: ${err?.message ?? String(err)}`;
   }
 
   const onInput = debounce(() => {
-    const srcRaw = inputEl.value;
-    const normalized = normalizeExpr(srcRaw);
-    const src = stripCommentLinesKeepLayout(normalized);
-    currentSourceForError = src;
+    const exprRaw = inputEl.value;
+    const varsRaw = varsEl.value;
     try {
+      const vars = parseVariables(varsRaw);
+      const templated = applyTemplate(exprRaw, vars);
+      const src = normalizeExpr(templated);
       const tokens = tokenize(src);
       const ast = parse(tokens);
       const { value, steps } = evaluate(ast);
@@ -353,6 +379,7 @@
   }, 120);
 
   inputEl.addEventListener('input', onInput);
-  // 初期評価
+  varsEl.addEventListener('input', onInput);
   onInput();
 })();
+

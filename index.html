@@ -13,13 +13,24 @@
     </header>
     <main id="app" class="app">
       <section class="pane left" aria-label="入力ペイン">
-        <label for="exprInput" class="label">入力（式）</label>
-        <textarea id="exprInput" spellcheck="false" aria-label="式入力"></textarea>
+        <div class="input-group expr">
+          <label for="exprInput" class="label">入力（式）</label>
+          <textarea id="exprInput" spellcheck="false" aria-label="式入力"></textarea>
+        </div>
+        <div class="input-group vars">
+          <label for="varsInput" class="label">テンプレート変数</label>
+          <textarea
+            id="varsInput"
+            spellcheck="false"
+            aria-label="テンプレート変数"
+            placeholder="hoge = 12&#10;fuga = 25"
+          ></textarea>
+        </div>
         <div class="help">
           - 対応: +, -, *, /, %, ^, **, ( ) と小数（数値中のカンマ/アンダースコアによる桁区切り可）<br />
           - 全角/記号（× ÷ − など）は自動で正規化します<br />
           - 行をまたいだ式も評価されます（リアルタイム）<br />
-          - 行頭が「# 」の行はコメントとして無視します
+          - `{{var}}` を式に書き、下の欄で `var = 値` を定義すると展開されます
         </div>
       </section>
       <section class="pane right" aria-label="結果ペイン">
@@ -42,6 +53,6 @@
         </div>
       </section>
     </main>
-    <script src="app.js"></script>
+    <script type="module" src="./app.ts"></script>
   </body>
   </html>
