@@ -4,6 +4,7 @@
 
 import type { Token, TokNum, TokOp, TokL, TokR, TokEOF } from './ast';
 import { syntaxError } from './errors';
+import { decimalFrom } from './decimal';
 
 /** Tokenizes the given source string into a token array. */
 export function tokenize(src: string): Token[] {
@@ -40,7 +41,12 @@ export function tokenize(src: string): Token[] {
       if (cleaned === '.' || cleaned === '') {
         throw syntaxError('不正な数値', s, { start, end: i });
       }
-      const value = parseFloat(cleaned);
+      let value;
+      try {
+        value = decimalFrom(cleaned);
+      } catch {
+        throw syntaxError('不正な数値', s, { start, end: i });
+      }
       const tok: TokNum = { type: 'num', value, raw, range: { start, end: i } };
       push(tok);
       continue;
@@ -72,4 +78,3 @@ export function tokenize(src: string): Token[] {
   push(eof);
   return tokens;
 }
-

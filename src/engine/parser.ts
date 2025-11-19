@@ -22,7 +22,7 @@ export function parse(tokens: Token[], srcForError: string = ''): Node {
     }
     if (t.type === 'num') {
       const n = next() as TokNum;
-      const node: NumNode = { type: 'num', value: n.value, raw: String(n.value), range: { ...n.range } };
+      const node: NumNode = { type: 'num', value: n.value, raw: n.raw, range: { ...n.range } };
       return node;
     }
     if (t.type === 'lparen') {
@@ -65,4 +65,3 @@ export function parse(tokens: Token[], srcForError: string = ''): Node {
   }
   return ast;
 }
-

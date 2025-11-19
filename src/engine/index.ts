@@ -44,6 +44,10 @@ export { exprToString, formatMaybeParen } from './printer';
 // Terms utility
 export { extractTopLevelTerms } from './terms';
 
+// Decimal helpers (公開 API として最小限のものだけを露出)
+export type { Decimal } from './decimal';
+export { DECIMAL_ZERO, decimalAdd } from './decimal';
+
 // Evaluator: structured variant and convenience wrapper (re-export only)
 export { evaluateRaw } from './evaluator';
 export { evaluate } from './api';

@@ -5,6 +5,8 @@
  * documentation, so it can be read in isolation without any project context.
  */
 
+import type { Decimal } from './decimal';
+
 /** A half-open character range [start, end) within a source string. */
 export type Range = { start: number; end: number };
 
@@ -15,7 +17,7 @@ export type BinOp = '+' | '-' | '*' | '/' | '%' | '^' | '**';
  * Token kinds produced by the lexer. Every token carries a `range` so callers
  * can report precise error locations.
  */
-export type TokNum = { type: 'num'; value: number; raw: string; range: Range };
+export type TokNum = { type: 'num'; value: Decimal; raw: string; range: Range };
 export type TokOp = { type: 'op'; op: BinOp | '+' | '-'; range: Range };
 export type TokL = { type: 'lparen'; range: Range };
 export type TokR = { type: 'rparen'; range: Range };
@@ -23,7 +25,7 @@ export type TokEOF = { type: 'eof'; range: Range };
 export type Token = TokNum | TokOp | TokL | TokR | TokEOF;
 
 /** AST node for a numeric literal. */
-export type NumNode = { type: 'num'; value: number; raw?: string; range: Range };
+export type NumNode = { type: 'num'; value: Decimal; raw?: string; range: Range };
 /** AST node for a parenthesized sub-expression. */
 export type GroupNode = { type: 'group'; expr: Node; range: Range };
 /** AST node for a unary prefix operator (+ or -). */
@@ -38,4 +40,3 @@ export type Node = NumNode | GroupNode | UnaryNode | BinNode;
 export function assertNever(x: never): never {
   throw new Error(`Unexpected object: ${String(x)}`);
 }
-

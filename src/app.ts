@@ -16,7 +16,10 @@ import {
   parseVariables,
   tokenize,
   evaluate,
+  DECIMAL_ZERO,
+  decimalAdd,
   type Node,
+  type Decimal,
 } from './engine';
 import {
   createSheet,
@@ -147,7 +150,7 @@ if (typeof document !== 'undefined') {
       rightPane.style.display = 'none';
     }
 
-    function renderOk({ value, steps, ast }: { value: number; steps: string[]; ast: Node }) {
+    function renderOk({ value, steps, ast }: { value: Decimal; steps: string[]; ast: Node }) {
       statusEl.textContent = 'OK';
       finalEl.textContent = fmt(value);
 
@@ -155,13 +158,13 @@ if (typeof document !== 'undefined') {
       termsOl.innerHTML = '';
       runningDiv.innerHTML = '';
       const terms = extractTopLevelTerms(ast);
-      let run = 0;
+      let run: Decimal = DECIMAL_ZERO;
       terms.forEach((t, idx) => {
         const v = evaluate(t).value;
         const li = document.createElement('li');
         li.textContent = `項${idx + 1}: ${exprToString(t)} = ${fmt(v)}`;
         termsOl.appendChild(li);
-        run += v;
+        run = decimalAdd(run, v);
         const p = document.createElement('div');
         p.textContent = `項${idx + 1} までの累計: ${fmt(run)}`;
         runningDiv.appendChild(p);
@@ -181,7 +184,12 @@ if (typeof document !== 'undefined') {
       termsOl.innerHTML = '';
       runningDiv.innerHTML = '';
       stepsEl.innerHTML = '';
-      const label = err && err.name === 'SyntaxError' ? '構文エラー' : 'エラー';
+      let label = 'エラー';
+      if (err && err.name === 'SyntaxError') {
+        label = '構文エラー';
+      } else if (err && err.name === 'EvalError') {
+        label = '計算エラー';
+      }
       statusEl.textContent = `${label}: ${err?.message ?? String(err)}`;
     }
 

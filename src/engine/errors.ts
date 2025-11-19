@@ -49,3 +49,11 @@ export function templateError(msg: string): CalcError {
   return e;
 }
 
+/** Creates an EvalError for runtime evaluation failures. */
+export function evalError(msg: string, range: Range, code: string = 'EVAL_ERROR'): CalcError {
+  const e = new Error(msg) as CalcError;
+  e.name = 'EvalError';
+  e.code = code;
+  e.range = range;
+  return e;
+}
